@@ -8,6 +8,7 @@ from src.dataset import get_dataloaders
 from src.model import CIFAR10ResNet18
 
 import argparse
+import json
 
 
 def load_config(config_path: str):
@@ -57,8 +58,7 @@ def train(config_path: str):
     print(f"Training samples: {len(train_loader.dataset)}")
     print(f"Test samples: {len(test_loader.dataset)}")
 
-    model = CIFAR10ResNet18()
-    model = model.to(device)
+    model = CIFAR10ResNet18().to(device)
 
     criterion = nn.CrossEntropyLoss()
 
@@ -69,6 +69,25 @@ def train(config_path: str):
     )
 
     epochs = config["training"]["epochs"]
+    patience = config["training"]["early_stopping_patience"]
+
+    checkpoint_dir = Path(
+        config["output"]["checkpoint_dir"]
+    )
+    checkpoint_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    checkpoint_path = checkpoint_dir / config["output"]["checkpoint_name"]
+
+    metrics_path = checkpoint_dir / config["output"]["metrics_file"]
+
+    best_accuracy = -1.0
+    epochs_without_improvement = 0
+
+    # Start a fresh metrics file for this training run.
+    metrics_path.write_text("", encoding="utf-8")
 
     for epoch in range(epochs):
         model.train()
@@ -99,29 +118,43 @@ def train(config_path: str):
             device,
         )
 
-        print(
-            f"Epoch [{epoch + 1}/{epochs}] "
-            f"Loss: {average_loss:.4f} "
-            f"Test Accuracy: {accuracy:.2f}%"
-        )
+        metrics = {
+            "epoch": epoch + 1,
+            "train_loss": average_loss,
+            "test_accuracy": accuracy,
+        }
 
-    checkpoint_dir = Path(
-        config["output"]["checkpoint_dir"]
-    )
+        with metrics_path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(metrics) + "\n")
 
-    checkpoint_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+        print(json.dumps(metrics))
 
-    checkpoint_path = checkpoint_dir / "model.pt"
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            epochs_without_improvement = 0
 
-    torch.save(
-        model.state_dict(),
-        checkpoint_path,
-    )
+            torch.save(
+                model.state_dict(),
+                checkpoint_path,
+            )
 
-    print(f"Model checkpoint saved to: {checkpoint_path}")
+            print(
+                f"Best model checkpoint saved to: "
+                f"{checkpoint_path}"
+            )
+
+        else:
+            epochs_without_improvement += 1
+
+            if epochs_without_improvement >= patience:
+                print(
+                    f"Early stopping triggered after "
+                    f"{epoch + 1} epochs."
+                )
+                break
+
+    print(f"Best test accuracy: {best_accuracy:.2f}%")
+    print(f"Metrics saved to: {metrics_path}")
 
 
 if __name__ == "__main__":
