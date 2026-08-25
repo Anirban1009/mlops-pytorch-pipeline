@@ -27,3 +27,6 @@ checkpoints/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Test image
+test_image.png
