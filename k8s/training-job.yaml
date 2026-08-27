@@ -17,6 +17,14 @@ spec:
           image: mlops-train:v1
           imagePullPolicy: IfNotPresent
 
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+
           args:
             - "--config"
             - "/app/config/training_config.yaml"
